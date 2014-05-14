@@ -22,6 +22,11 @@ ARDUINO_HW_HOME := $(ARDUINO_HOME)/hardware
 CORE_LIB_HOME := $(ARDUINO_HOME)/libraries
 ARDUINO := $(ARDUINO_HW_HOME)/arduino/cores/arduino
 
+#avr tools path
+AVRDUDE_PATH=$(ARDUINO_HW_HOME)/tools
+AVR_GCC_PATH=$(ARDUINO_HW_HOME)/tools/avr/bin
+
+
 #************************************************************************
 # Library includes and sources
 #************************************************************************
@@ -81,16 +86,16 @@ CXXFLAGS = $(CDEFS) $(CINCS) -O$(OPT)
 AVRDUDE_PROGRAMMER = stk500v2
 AVRDUDE_PORT = $(PORT)
 AVRDUDE_WRITE_FLASH = -U flash:w:$(TARGET).hex
-AVRDUDE_FLAGS = -F -p $(MCU) -P $(AVRDUDE_PORT) -c $(AVRDUDE_PROGRAMMER) -b $(UPLOAD_RATE)
+AVRDUDE_FLAGS = -F -p $(MCU) -P $(AVRDUDE_PORT) -c $(AVRDUDE_PROGRAMMER) -b $(UPLOAD_RATE) -C $(AVRDUDE_PATH)/avrdude.conf
 
 # Program settings
-CC = avr-gcc
-CXX = avr-g++
-OBJCOPY = avr-objcopy
-OBJDUMP = avr-objdump
-SIZE = avr-size
-NM = avr-nm
-AVRDUDE = avrdude
+CC = $(AVR_GCC_PATH)/avr-gcc
+CXX = $(AVR_GCC_PATH)/avr-g++
+OBJCOPY = $(AVR_GCC_PATH)/avr-objcopy
+OBJDUMP = $(AVR_GCC_PATH)/avr-objdump
+SIZE = $(AVR_GCC_PATH)/avr-size
+NM = $(AVR_GCC_PATH)/avr-nm
+AVRDUDE = $(AVRDUDE_PATH)/avrdude
 REMOVE = rm -f
 MV = mv -f
 
@@ -120,7 +125,8 @@ sym: $(TARGET).sym
 
 # Program the device.  
 upload: $(TARGET).hex $(TARGET).eep
-	$(AVRDUDE) $(AVRDUDE_FLAGS) $(AVRDUDE_WRITE_FLASH)
+	@echo "Uploading $(TARGET).hex to target board"
+	@$(AVRDUDE) $(AVRDUDE_FLAGS) $(AVRDUDE_WRITE_FLASH)
 
 # Convert ELF to COFF for use in debugging / simulating in AVR Studio or VMLAB.
 COFFCONVERT=$(OBJCOPY) --debugging \
@@ -130,31 +136,34 @@ COFFCONVERT=$(OBJCOPY) --debugging \
 --change-section-address .eeprom-0x810000 
 
 coff: $(TARGET).elf
-	$(COFFCONVERT) -O coff-avr $(TARGET).elf $(TARGET).cof
+	@$(COFFCONVERT) -O coff-avr $(TARGET).elf $(TARGET).cof
 
 
 extcoff: $(TARGET).elf
-	$(COFFCONVERT) -O coff-ext-avr $(TARGET).elf $(TARGET).cof
+	@$(COFFCONVERT) -O coff-ext-avr $(TARGET).elf $(TARGET).cof
 
 .SUFFIXES: .elf .hex .eep .lss .sym
 
 .elf.hex:
-	$(OBJCOPY) -O $(FORMAT) -R .eeprom $< $@
+	@echo "[OBJCOPY] $@"
+	@$(OBJCOPY) -O $(FORMAT) -R .eeprom $< $@
 
 .elf.eep:
-	-$(OBJCOPY) -j .eeprom --set-section-flags=.eeprom="alloc,load"	--change-section-lma .eeprom=0 -O $(FORMAT) $< $@
+	@echo "[OBJCOPY] $@"
+	@-$(OBJCOPY) -j .eeprom --set-section-flags=.eeprom="alloc,load" -O $(FORMAT) $< $@
 
 # Create extended listing file from ELF output file.
 .elf.lss:
-	$(OBJDUMP) -h -S $< > $@
+	@$(OBJDUMP) -h -S $< > $@
 
 # Create a symbol table from ELF output file.
 .elf.sym:
-	$(NM) -n $< > $@
+	@echo "[NM] $@"
+	@$(NM) -n $< > $@
 
 # Link: create ELF output file from object files.
 $(TARGET).elf: $(OBJ)
-	@echo "Linking... $@"
+	@echo "[CXX] $@"
 	@$(CXX) $(ALL_CFLAGS) $(OBJ) --output $@ $(LDFLAGS)
 
 # Compile: create object files from ino source files.
@@ -174,11 +183,13 @@ $(TARGET).elf: $(OBJ)
 
 # Compile: create assembler files from C source files.
 %.o: %.s
-	$(CC) -S $(ALL_CFLAGS) $< -o $@
+	@echo "[CC] $@"
+	@$(CC) -S $(ALL_CFLAGS) $< -o $@
 
 # Assemble: create object files from assembler source files.
 %.o: %.S
-	$(CC) -c $(ALL_ASFLAGS) $< -o $@
+	@echo "[CC] $@"
+	@$(CC) -c $(ALL_ASFLAGS) $< -o $@
 
 # Target: clean project.
 clean:
